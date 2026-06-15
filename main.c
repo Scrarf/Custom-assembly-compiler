@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdint.h>
 
 // section struct for stuff like "start 0x08:"
 
@@ -10,6 +11,22 @@ typedef struct token {
 	char* str;
 	int size;
 } token;
+
+token tokens[(1 << 16) - 1];
+int token_ptr = 0;
+
+typedef struct section_table {
+	char* str;
+	uint32_t addr;
+} section_table;
+
+section_table sec_tb[(1 << 16) - 1];
+uint32_t sec_tb_ptr;
+
+uint32_t code[(1 << 16) - 1];
+uint32_t code_ptr;
+
+
 char* read_file(char* path, size_t* file_size) {
 	FILE* f = fopen(path, "r");
 	if (!f) {
@@ -28,14 +45,12 @@ char* read_file(char* path, size_t* file_size) {
     
 	return buf;
 }
+	
 
 int tokenize(char* text, size_t size) {
 	int line_number = 1;
 	int allocated = 0;
 
-	token tokens[(1 << 16) - 1];
-	int token_ptr = 0;
-	
 	for (int i = 0; i < size; i++) {
 		
 		if ((text[i] >= 35) && (text[i] <= 122)) {
@@ -67,8 +82,6 @@ int tokenize(char* text, size_t size) {
 			printf("charachter: %d\n", text[i]);
 			return 1;
 		}
-		
-		
 			
 	}
 	printf("Tokens:\n");
@@ -77,6 +90,48 @@ int tokenize(char* text, size_t size) {
 	}
 	return 0;
 }
+
+
+
+int interpret() {
+	int i = 0;
+	//while (i < tokens_ptr) {
+	
+		if (strncmp(tokens[i].str, "section", tokens[i].size) == 0) {
+			sec_tb[sec_tb_ptr].str = tokens[i+1].str;
+			
+			if (tokens[i+2].str[0] == '0' && tokens[i+2].str[1] == 'x') {
+				int tmp_addr = 0;
+				int addr = 0;
+				for (int j = 2; j < tokens[i+2].size-2; j++) {
+					if (tokens[i+2].str[j] >= '0' && tokens[i+2].str[j] <= '9') {
+						tmp_addr = (tokens[i+2].str[j] - '0');
+					}
+					else if (tokens[i+2].str[j] >= 'A' && tokens[i+2].str[j] <= 'F') {
+						tmp_addr = tokens[i+2].str[j] - 'A' + 10;
+					}
+					else {
+						printf("Invalid address.\n");
+						return 1;	
+					}
+					//addr += tmp_addr * pow(16, tokens[i+2].size-3 - (j-2) - 1);
+					printf("addr: %d\n", addr);
+					addr += tmp_addr << ((tokens[i+2].size-4 - (j-2) - 1) * 4);
+				}
+				sec_tb[sec_tb_ptr].addr = addr;
+				sec_tb_ptr++;
+			}
+			else {
+				printf("Invalid address.\n");
+				return 1;
+			}
+		
+		}
+		printf("addr: %d\n", sec_tb[0].addr);	
+	//}
+	return 0;
+}
+
 
 int main(int argc, char** argv) {
 
@@ -97,10 +152,17 @@ int main(int argc, char** argv) {
 	}
 	printf("\n");
 
-	 if (tokenize(text, file_size) != 0) {
-		printf("exiting due to falure.\n");
+	if (tokenize(text, file_size) != 0) {
+		printf("exiting due to tokenization falure.\n");
 		return 1;
-	 }	
+	}
+
+	if (interpret() != 0) {
+		printf("exiting due to interpretation falure.\n");
+		return 1;
+	}
 	
 	return 0;
 }
+
+
